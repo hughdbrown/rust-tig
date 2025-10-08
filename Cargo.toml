@@ -3,10 +3,10 @@ name = "rust-tig"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
-authors = ["rust-tig contributors"]
+authors = ["rust-tig contributors", "hughdbrown@gmail.com"]
 license = "MIT OR Apache-2.0"
 description = "A Rust-based terminal interface for Git, inspired by tig"
-repository = "https://github.com/yourusername/rust-tig"
+repository = "https://github.com/hughdbrown/rust-tig"
 keywords = ["git", "tui", "terminal", "version-control"]
 categories = ["command-line-utilities", "development-tools"]
 
