@@ -1,50 +1,93 @@
 name: macOS
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  install:
+  test:
+    name: Test
     runs-on: macos-latest
-    if: github.ref == 'refs/heads/master'
 
     strategy:
       matrix:
-        compiler: [clang, gcc]
-
-    steps:
-      - name: Patch
-        run: |
-          brew tap homebrew/core
-          cd "$(brew --repo homebrew/core)" && patch -p1 <<\EOF
-          diff --git a/Formula/t/tig.rb b/Formula/t/tig.rb
-          index c726e53c519..920b0fbc1c2 100644
-          --- a/Formula/t/tig.rb
-          +++ b/Formula/t/tig.rb
-          @@ -31,9 +31,11 @@ class Tig < Formula
-             depends_on "readline"
-           
-             def install
-          +    ENV.deparallelize
-               system "./autogen.sh" if build.head?
-               system "./configure", "--prefix=#{prefix}", "--sysconfdir=#{etc}"
-               system "make"
-          +    system "make", "test"
-               # Ensure the configured `sysconfdir` is used during runtime by
-               # installing in a separate step.
-               system "make", "install", "sysconfdir=#{pkgshare}/examples"
-          EOF
-      - name: Install latest Tig
-        shell: 'script -q typescript sh {0}' # Workaround to get a TTY, see https://github.com/gfx/example-github-actions-with-tty
-        run: HOMEBREW_NO_INSTALL_FROM_API=1 HOMEBREW_CC=${{ matrix.compiler }} HOMEBREW_NO_AUTO_UPDATE=1 brew install --HEAD tig
-
-  ci:
-    runs-on: macos-latest
-    if: github.ref != 'refs/heads/master'
+        rust:
+          - stable
+          - beta
+          - nightly
+          - 1.90  # MSRV from Cargo.toml
 
     steps:
       - uses: actions/checkout@v4
-      - name: Test Tig
-        shell: 'script -q typescript sh {0}' # Workaround to get a TTY, see https://github.com/gfx/example-github-actions-with-tty
-        run: |
-          brew install asciidoc autoconf automake coreutils gnu-sed ncurses xmlto
-          TIG_BUILD=autoconf tools/travis.sh
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests
+        run: cargo test --verbose
+
+  release-build:
+    name: Release Build
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release --verbose
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-tig-macos
+          path: target/release/rust-tig

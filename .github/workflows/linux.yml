@@ -1,32 +1,93 @@
 name: Linux
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  ci:
+  test:
+    name: Test
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        compiler: [clang, gcc]
-        tig_build: [autoconf, "config.make"]
-        include:
-          - name: Address Sanitizer
-            compiler: clang
-            tig_build: "address-sanitizer"
-
-          - name: Valgrind
-            compiler: gcc
-            tig_build: valgrind
+        rust:
+          - stable
+          # - beta
+          # - nightly
+          - 1.90  # MSRV from Cargo.toml
 
     steps:
       - uses: actions/checkout@v4
-      - name: Test Tig
-        shell: 'script -q -e -c "sh {0}"' # Workaround to get a TTY, see https://github.com/gfx/example-github-actions-with-tty
-        run: |
-          set -ex
-          export LANG=en_US.utf8
-          sudo apt update
-          sudo DEBIAN_FRONTEND=noninteractive apt -yq install --no-install-recommends \
-            asciidoc valgrind xmlto
-          CC=${{ matrix.compiler }} TIG_BUILD=${{ matrix.tig_build }} tools/travis.sh
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests
+        run: cargo test --verbose
+
+  release-build:
+    name: Release Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release --verbose
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-tig-linux
+          path: target/release/rust-tig
