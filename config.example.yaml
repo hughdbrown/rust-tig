@@ -1,0 +1,81 @@
+# Example configuration file for rust-tig
+# Copy this to ~/.config/rust-tig/config.yaml and customize as needed
+
+# Keybindings configuration
+keybindings:
+  # Global keybindings available in all views
+  global:
+    quit: q
+    help: "?"
+    refresh: r
+
+  # Main view (commit history) keybindings
+  main:
+    search: /
+    status: s
+    diff: d
+    enter: Enter
+
+  # Diff view keybindings
+  diff:
+    scroll_up: k
+    scroll_down: j
+    page_up: PageUp
+    page_down: PageDown
+
+  # Status view keybindings
+  status:
+    stage: s
+    unstage: u
+    commit: c
+    diff: d
+
+# Color configuration for UI elements
+colors:
+  # Color for added lines in diffs
+  added: green
+
+  # Color for deleted lines in diffs
+  deleted: red
+
+  # Color for modified content
+  modified: yellow
+
+  # Color for unmodified content
+  unmodified: black
+
+  # Color for commit hashes
+  commit_hash: cyan
+
+  # Color for dates
+  date: blue
+
+  # Color for authors
+  author: magenta
+
+  # Color for selected items (supports "color on background" format)
+  selected: black on white
+
+  # Color for status bar (supports "color on background" format)
+  status_bar: black on cyan
+
+# General application settings
+settings:
+  # Number of commits to load per chunk
+  commit_chunk_size: 50
+
+  # Date format string (chrono format)
+  # Examples:
+  #   "%Y-%m-%d %H:%M" -> 2024-10-07 15:30
+  #   "%b %d %Y" -> Oct 07 2024
+  #   "%Y-%m-%d" -> 2024-10-07
+  date_format: "%Y-%m-%d %H:%M"
+
+  # Enable/disable mouse support
+  mouse_support: true
+
+  # Show line numbers in diff view
+  show_line_numbers: true
+
+  # Tab width for display
+  tab_width: 4
