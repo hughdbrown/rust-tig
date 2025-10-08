@@ -1,0 +1,30 @@
+[package]
+name = "rust-tig"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+authors = ["rust-tig contributors"]
+license = "MIT OR Apache-2.0"
+description = "A Rust-based terminal interface for Git, inspired by tig"
+repository = "https://github.com/yourusername/rust-tig"
+keywords = ["git", "tui", "terminal", "version-control"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+git2 = "0.19"
+tokio = { version = "1.40", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = "0.4"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[profile.release]
+opt-level = "z"     # Optimize for size
+lto = "thin"        # Thin LTO - faster and less memory
+codegen-units = 1   # Better optimization
+strip = true        # Strip symbols from binary
+panic = "abort"     # Smaller panic handling

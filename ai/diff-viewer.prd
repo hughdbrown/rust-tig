@@ -1,0 +1,38 @@
+# Description
+A terminal application for viewing diffs in a git repository.
+
+# Principal features
+1. Show the text before a commit and after in two text panes
+2. Show the diff 
+3. Navigate between commits in a repository
+4. Navigate between diffs in a commit
+
+# Stack
+1. Rust
+2. Dioxus crate for UI
+
+# User interface
+1. Top horizontal pane: 5 lines are the commits in repository (most recent at the top)
+- scrollable pane
+- keypress Ctrl-Down navigates to diff-pane below
+- keypress Enter selects the current commit and causes the diffs in the diff-pane to change
+- keypress Up navigates up the list of commits to the next most recent commit
+- keypress Down navigates down the list of commits to the next older commit
+2. Bottom horizontal pane
+- below the top horizontal pane
+- composed of three vertical panes
+
+2.1 Leftmost vertical pane: text navigator for version of repo before commit
+- keypress Tab sets focus in the diff-pane
+2.2 Middle vertical pane: diff navigator for changes within a commit (aka diff-pane)
+- Shows the list of diffs for the currently selected commit
+- keypress Ctrl-Up navigates to top pane
+- keypress Down navigates down through the list of diffs
+- keypress Up navigates up through the list of diffs
+- keypress Tab navigates to the right text window with a view of the current repo state
+- keypress Shift-Tab sets focus to the left text window with a view of the previous repo state
+- keypress Enter syncs the left and right text windows to display the text affected by the selected diff
+2.3 Rightmost vertical pane: text navigator for version of repo after commit
+- keypress Shift-Tab sets focus in the diff-pane
+
+
