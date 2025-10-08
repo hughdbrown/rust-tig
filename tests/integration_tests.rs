@@ -1,7 +1,13 @@
+use rust_tig::config::{ColorScheme, Config};
 use rust_tig::git::{CommitWalker, Repository};
 use rust_tig::views::{DiffView, MainView, StatusView, View};
 use std::fs;
 use tempfile::TempDir;
+
+/// Create a test color scheme
+fn test_color_scheme() -> ColorScheme {
+    ColorScheme::from_config(&Config::default().colors)
+}
 
 /// Create a test repository with multiple commits
 async fn create_test_repo_with_history() -> (TempDir, Repository) {
@@ -219,7 +225,7 @@ async fn test_staging_and_unstaging_workflow() {
 #[tokio::test]
 async fn test_main_view_lifecycle() {
     let (_temp_dir, repo) = create_test_repo_with_history().await;
-    let mut view = MainView::new(repo);
+    let mut view = MainView::new(repo, test_color_scheme());
 
     // Test activation
     view.on_activate().unwrap();
@@ -237,7 +243,7 @@ async fn test_main_view_lifecycle() {
 #[tokio::test]
 async fn test_status_view_lifecycle() {
     let (_temp_dir, repo) = create_test_repo_with_history().await;
-    let mut view = StatusView::new(repo);
+    let mut view = StatusView::new(repo, test_color_scheme());
 
     // Test activation
     view.on_activate().unwrap();
@@ -259,7 +265,7 @@ async fn test_diff_view_lifecycle() {
     let commits = walker.load_all().await.unwrap();
     let commit = &commits[0];
 
-    let mut view = DiffView::new(repo, commit.id, commit.summary.clone());
+    let mut view = DiffView::new(repo, commit.id, commit.summary.clone(), test_color_scheme());
 
     // Test activation
     view.on_activate().unwrap();

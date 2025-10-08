@@ -1,4 +1,5 @@
 use super::view::{Action, View};
+use crate::config::ColorScheme;
 use crate::git::{Repository, Status, StatusEntry};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -30,11 +31,11 @@ impl Section {
         }
     }
 
-    fn color(&self) -> Color {
+    fn color(&self, colors: &ColorScheme) -> Color {
         match self {
-            Section::Staged => Color::Green,
-            Section::Unstaged => Color::Yellow,
-            Section::Untracked => Color::Red,
+            Section::Staged => colors.added,
+            Section::Unstaged => colors.modified,
+            Section::Untracked => colors.deleted,
             Section::Conflicted => Color::Magenta,
         }
     }
@@ -76,11 +77,12 @@ pub struct StatusView {
     error: Option<String>,
     receiver: Option<mpsc::UnboundedReceiver<Result<Status>>>,
     refresh_trigger: Option<mpsc::UnboundedReceiver<()>>,
+    colors: ColorScheme,
 }
 
 impl StatusView {
     /// Create a new status view
-    pub fn new(repo: Repository) -> Self {
+    pub fn new(repo: Repository, colors: ColorScheme) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
@@ -93,6 +95,7 @@ impl StatusView {
             error: None,
             receiver: None,
             refresh_trigger: None,
+            colors,
         }
     }
 
@@ -240,7 +243,7 @@ impl StatusView {
                 Span::styled(
                     item.section.title().to_string(),
                     Style::default()
-                        .fg(item.section.color())
+                        .fg(item.section.color(&self.colors))
                         .add_modifier(Modifier::BOLD),
                 ),
             ]))
@@ -252,7 +255,7 @@ impl StatusView {
             ListItem::new(Line::from(vec![
                 Span::styled(
                     format!("  {} ", status_code),
-                    Style::default().fg(item.section.color()),
+                    Style::default().fg(item.section.color(&self.colors)),
                 ),
                 Span::styled(path, Style::default().fg(Color::White)),
             ]))
@@ -411,7 +414,7 @@ impl View for StatusView {
             let loading_items = vec![ListItem::new("Loading status...")];
             let list = List::new(loading_items)
                 .block(Block::default().title("Status").borders(Borders::ALL))
-                .style(Style::default().fg(Color::Yellow));
+                .style(Style::default().fg(self.colors.modified));
             frame.render_widget(list, area);
             return;
         }
@@ -425,7 +428,7 @@ impl View for StatusView {
                         .title("Status - Error")
                         .borders(Borders::ALL),
                 )
-                .style(Style::default().fg(Color::Red));
+                .style(Style::default().fg(self.colors.deleted));
             frame.render_widget(list, area);
             return;
         }
@@ -450,8 +453,7 @@ impl View for StatusView {
         let list = List::new(list_items)
             .block(Block::default().title(title).borders(Borders::ALL))
             .highlight_style(
-                Style::default()
-                    .bg(Color::DarkGray)
+                self.colors.selected
                     .add_modifier(Modifier::BOLD),
             )
             .highlight_symbol("> ");
@@ -501,10 +503,15 @@ mod tests {
         (temp_dir, repo)
     }
 
+    fn test_color_scheme() -> ColorScheme {
+        use crate::config::Config;
+        ColorScheme::from_config(&Config::default().colors)
+    }
+
     #[tokio::test]
     async fn test_status_view_creation() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let view = StatusView::new(repo);
+        let view = StatusView::new(repo, test_color_scheme());
         assert_eq!(view.title(), "Status");
         assert!(view.status.is_none());
     }
@@ -512,7 +519,7 @@ mod tests {
     #[tokio::test]
     async fn test_status_view_load() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let mut view = StatusView::new(repo);
+        let mut view = StatusView::new(repo, test_color_scheme());
         view.start_loading();
 
         // Give the background task time to complete
@@ -527,7 +534,7 @@ mod tests {
     #[tokio::test]
     async fn test_status_view_navigation() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let mut view = StatusView::new(repo);
+        let mut view = StatusView::new(repo, test_color_scheme());
 
         // Add some items manually for testing
         view.items.push(DisplayItem::header(Section::Staged));

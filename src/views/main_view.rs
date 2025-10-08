@@ -1,4 +1,5 @@
 use super::view::{Action, View};
+use crate::config::ColorScheme;
 use crate::git::{Commit, CommitWalker, Repository};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -29,11 +30,12 @@ pub struct MainView {
     receiver: Option<mpsc::UnboundedReceiver<Vec<Commit>>>,
     search_mode: SearchMode,
     search_query: String,
+    colors: ColorScheme,
 }
 
 impl MainView {
     /// Create a new main view
-    pub fn new(repo: Repository) -> Self {
+    pub fn new(repo: Repository, colors: ColorScheme) -> Self {
         let mut table_state = TableState::default();
         table_state.select(Some(0));
 
@@ -47,6 +49,7 @@ impl MainView {
             receiver: None,
             search_mode: SearchMode::Inactive,
             search_query: String::new(),
+            colors,
         }
     }
 
@@ -226,11 +229,11 @@ impl MainView {
 
     /// Create a table row for a commit
     fn create_commit_row<'a>(&self, commit: &'a Commit) -> Row<'a> {
-        let hash = Span::styled(&commit.short_id, Style::default().fg(Color::Yellow));
+        let hash = Span::styled(&commit.short_id, Style::default().fg(self.colors.commit_hash));
 
-        let date = Span::styled(commit.relative_date(), Style::default().fg(Color::Blue));
+        let date = Span::styled(commit.relative_date(), Style::default().fg(self.colors.date));
 
-        let author = Span::styled(&commit.author, Style::default().fg(Color::Green));
+        let author = Span::styled(&commit.author, Style::default().fg(self.colors.author));
 
         let refs = if commit.refs.is_empty() {
             Span::raw("")
@@ -394,8 +397,7 @@ impl View for MainView {
         let table = Table::new(rows, widths)
             .block(Block::default().title(title).borders(Borders::ALL))
             .row_highlight_style(
-                Style::default()
-                    .bg(Color::DarkGray)
+                self.colors.selected
                     .add_modifier(Modifier::BOLD),
             )
             .highlight_symbol("> ");
@@ -410,7 +412,7 @@ impl View for MainView {
             if x < area.x + area.width && y < area.y + area.height {
                 frame.render_widget(
                     ratatui::widgets::Paragraph::new(loading_text)
-                        .style(Style::default().fg(Color::Yellow)),
+                        .style(Style::default().fg(self.colors.modified)),
                     Rect::new(x, y, loading_text.len() as u16, 1),
                 );
             }
@@ -421,7 +423,7 @@ impl View for MainView {
             let error_text = format!("Error: {}", error);
             frame.render_widget(
                 ratatui::widgets::Paragraph::new(error_text)
-                    .style(Style::default().fg(Color::Red)),
+                    .style(Style::default().fg(self.colors.deleted)),
                 Rect::new(area.x + 1, area.y + 1, area.width - 2, 1),
             );
         }
@@ -461,17 +463,22 @@ mod tests {
         (temp_dir, repo)
     }
 
+    fn test_color_scheme() -> ColorScheme {
+        use crate::config::Config;
+        ColorScheme::from_config(&Config::default().colors)
+    }
+
     #[tokio::test]
     async fn test_main_view_creation() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let view = MainView::new(repo);
+        let view = MainView::new(repo, test_color_scheme());
         assert_eq!(view.commits.len(), 0);
     }
 
     #[tokio::test]
     async fn test_main_view_navigation() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let mut view = MainView::new(repo);
+        let mut view = MainView::new(repo, test_color_scheme());
 
         // Add some dummy commits for testing navigation
         for i in 0..10 {
@@ -503,7 +510,7 @@ mod tests {
     #[tokio::test]
     async fn test_main_view_search() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let mut view = MainView::new(repo);
+        let mut view = MainView::new(repo, test_color_scheme());
 
         // Add test commits
         view.commits.push(Commit {
@@ -562,7 +569,7 @@ mod tests {
     #[tokio::test]
     async fn test_main_view_search_empty_query() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let mut view = MainView::new(repo);
+        let mut view = MainView::new(repo, test_color_scheme());
 
         view.commits.push(Commit {
             id: git2::Oid::zero(),
@@ -583,7 +590,7 @@ mod tests {
     #[tokio::test]
     async fn test_main_view_search_no_matches() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let mut view = MainView::new(repo);
+        let mut view = MainView::new(repo, test_color_scheme());
 
         view.commits.push(Commit {
             id: git2::Oid::zero(),
@@ -608,7 +615,7 @@ mod tests {
     #[tokio::test]
     async fn test_main_view_page_navigation() {
         let (_temp_dir, repo) = create_test_repo().await;
-        let mut view = MainView::new(repo);
+        let mut view = MainView::new(repo, test_color_scheme());
 
         // Add 50 commits
         for i in 0..50 {

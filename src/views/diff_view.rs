@@ -1,4 +1,5 @@
 use super::view::{Action, View};
+use crate::config::ColorScheme;
 use crate::git::{Diff, DiffFile, DiffHunk, DiffLine, LineType, Repository};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -30,11 +31,12 @@ pub struct DiffView {
     loading: bool,
     error: Option<String>,
     receiver: Option<mpsc::UnboundedReceiver<Result<Diff>>>,
+    colors: ColorScheme,
 }
 
 impl DiffView {
     /// Create a new diff view for a commit
-    pub fn new(repo: Repository, commit_id: Oid, commit_summary: String) -> Self {
+    pub fn new(repo: Repository, commit_id: Oid, commit_summary: String, colors: ColorScheme) -> Self {
         Self {
             repo,
             source: DiffSource::Commit {
@@ -47,11 +49,12 @@ impl DiffView {
             loading: false,
             error: None,
             receiver: None,
+            colors,
         }
     }
 
     /// Create a new diff view for staged changes
-    pub fn new_staged(repo: Repository, path: String) -> Self {
+    pub fn new_staged(repo: Repository, path: String, colors: ColorScheme) -> Self {
         Self {
             repo,
             source: DiffSource::StagedFile { path },
@@ -61,11 +64,12 @@ impl DiffView {
             loading: false,
             error: None,
             receiver: None,
+            colors,
         }
     }
 
     /// Create a new diff view for unstaged changes
-    pub fn new_unstaged(repo: Repository, path: String) -> Self {
+    pub fn new_unstaged(repo: Repository, path: String, colors: ColorScheme) -> Self {
         Self {
             repo,
             source: DiffSource::UnstagedFile { path },
@@ -75,6 +79,7 @@ impl DiffView {
             loading: false,
             error: None,
             receiver: None,
+            colors,
         }
     }
 
@@ -114,30 +119,39 @@ impl DiffView {
                 lines.push(Line::from(vec![
                     Span::styled(
                         format!("commit {}", id),
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                        Style::default().fg(self.colors.commit_hash).add_modifier(Modifier::BOLD),
                     ),
                 ]));
                 lines.push(Line::from(Span::styled(
                     summary.clone(),
-                    Style::default().fg(Color::White),
+                    // Style::default().fg(Color::White),
+                    Style::default().fg(self.colors.modified),
                 )));
             }
             DiffSource::StagedFile { path } => {
                 lines.push(Line::from(vec![
                     Span::styled(
                         "Staged changes: ",
-                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                        Style::default().fg(self.colors.added).add_modifier(Modifier::BOLD),
                     ),
-                    Span::styled(path.clone(), Style::default().fg(Color::White)),
+                    Span::styled(
+                        path.clone(),
+                        // Style::default().fg(Color::White),
+                        Style::default().fg(self.colors.modified),
+                    ),
                 ]));
             }
             DiffSource::UnstagedFile { path } => {
                 lines.push(Line::from(vec![
                     Span::styled(
                         "Unstaged changes: ",
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                        Style::default().fg(self.colors.modified).add_modifier(Modifier::BOLD),
                     ),
-                    Span::styled(path.clone(), Style::default().fg(Color::White)),
+                    Span::styled(
+                        path.clone(), 
+                        // Style::default().fg(Color::White),
+                        Style::default().fg(self.colors.modified),
+                    ),
                 ]));
             }
         }
@@ -154,15 +168,16 @@ impl DiffView {
         lines.push(Line::from(vec![
             Span::styled(
                 format!("{} file(s) changed, ", diff.files.len()),
-                Style::default().fg(Color::White),
+                // Style::default().fg(Color::White),
+                Style::default().fg(self.colors.modified),
             ),
             Span::styled(
                 format!("+{} ", additions),
-                Style::default().fg(Color::Green),
+                Style::default().fg(self.colors.added),
             ),
             Span::styled(
                 format!("-{}", deletions),
-                Style::default().fg(Color::Red),
+                Style::default().fg(self.colors.deleted),
             ),
         ]));
 
@@ -202,7 +217,7 @@ impl DiffView {
         if file.is_binary {
             lines.push(Line::from(Span::styled(
                 "Binary file",
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(self.colors.modified),
             )));
             lines.push(Line::from(""));
             return;
@@ -236,9 +251,10 @@ impl DiffView {
     /// Render a single diff line
     fn render_diff_line(&self, line: &DiffLine) -> Line<'static> {
         let (style, prefix) = match line.line_type {
-            LineType::Addition => (Style::default().fg(Color::Green), "+"),
-            LineType::Deletion => (Style::default().fg(Color::Red), "-"),
-            LineType::Context => (Style::default().fg(Color::White), " "),
+            LineType::Addition => (Style::default().fg(self.colors.added), "+"),
+            LineType::Deletion => (Style::default().fg(self.colors.deleted), "-"),
+            // LineType::Context => (Style::default().fg(Color::White), " "),
+            LineType::Context => (Style::default().fg(self.colors.modified), " "),
             LineType::FileHeader => (
                 Style::default()
                     .fg(Color::Cyan)
@@ -370,7 +386,7 @@ impl View for DiffView {
             let loading_text = "Loading diff...";
             let paragraph = Paragraph::new(loading_text)
                 .block(Block::default().title("Diff").borders(Borders::ALL))
-                .style(Style::default().fg(Color::Yellow));
+                .style(Style::default().fg(self.colors.modified));
             frame.render_widget(paragraph, area);
             return;
         }
@@ -379,7 +395,7 @@ impl View for DiffView {
         if let Some(error) = &self.error {
             let paragraph = Paragraph::new(error.as_str())
                 .block(Block::default().title("Diff - Error").borders(Borders::ALL))
-                .style(Style::default().fg(Color::Red));
+                .style(Style::default().fg(self.colors.deleted));
             frame.render_widget(paragraph, area);
             return;
         }
@@ -471,10 +487,15 @@ mod tests {
         (temp_dir, repo, commit_id)
     }
 
+    fn test_color_scheme() -> ColorScheme {
+        use crate::config::Config;
+        ColorScheme::from_config(&Config::default().colors)
+    }
+
     #[tokio::test]
     async fn test_diff_view_creation() {
         let (_temp_dir, repo, commit_id) = create_test_repo_with_commit().await;
-        let view = DiffView::new(repo, commit_id, "Test commit".to_string());
+        let view = DiffView::new(repo, commit_id, "Test commit".to_string(), test_color_scheme());
         assert_eq!(view.title(), "Diff");
         assert!(view.diff.is_none());
     }
@@ -482,7 +503,7 @@ mod tests {
     #[tokio::test]
     async fn test_diff_view_load() {
         let (_temp_dir, repo, commit_id) = create_test_repo_with_commit().await;
-        let mut view = DiffView::new(repo, commit_id, "Test commit".to_string());
+        let mut view = DiffView::new(repo, commit_id, "Test commit".to_string(), test_color_scheme());
         view.start_loading();
 
         // Give the background task time to complete
@@ -498,7 +519,7 @@ mod tests {
     #[tokio::test]
     async fn test_diff_view_scrolling() {
         let (_temp_dir, repo, commit_id) = create_test_repo_with_commit().await;
-        let mut view = DiffView::new(repo, commit_id, "Test commit".to_string());
+        let mut view = DiffView::new(repo, commit_id, "Test commit".to_string(), test_color_scheme());
         view.start_loading();
 
         // Give the background task time to complete

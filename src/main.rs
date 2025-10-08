@@ -1,9 +1,5 @@
-mod git;
-mod ui;
-mod views;
-
 use anyhow::Result;
-use ui::{App, EventHandler};
+use rust_tig::ui::{self, App, EventHandler};
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -1,5 +1,6 @@
 use super::event::Event;
 use crate::{
+    config::{ColorScheme, Config},
     git::Repository,
     views::{Action, DiffView, HelpView, MainView, StatusView, ViewManager, ViewType},
 };
@@ -20,16 +21,22 @@ pub struct App {
     repo: Option<Repository>,
     branch: Option<String>,
     error: Option<String>,
+    colors: ColorScheme,
 }
 
 impl App {
     pub fn new() -> Self {
+        // Load config, fall back to defaults if config fails to load
+        let config = Config::load().unwrap_or_default();
+        let colors = ColorScheme::from_config(&config.colors);
+
         Self {
             running: true,
             view_manager: ViewManager::new(),
             repo: None,
             branch: None,
             error: None,
+            colors,
         }
     }
 
@@ -42,7 +49,7 @@ impl App {
 
                 self.repo = Some(repo.clone());
                 // Create and push the main view
-                let main_view = MainView::new(repo);
+                let main_view = MainView::new(repo, self.colors.clone());
                 self.view_manager.push(Box::new(main_view))?;
                 Ok(())
             }
@@ -96,7 +103,7 @@ impl App {
                 match view_type {
                     ViewType::Status => {
                         if let Some(repo) = &self.repo {
-                            let status_view = StatusView::new(repo.clone());
+                            let status_view = StatusView::new(repo.clone(), self.colors.clone());
                             self.view_manager.push(Box::new(status_view))?;
                         }
                     }
@@ -117,15 +124,15 @@ impl App {
                 commit_id,
                 summary,
             } => {
-                let diff_view = DiffView::new(repo, commit_id, summary);
+                let diff_view = DiffView::new(repo, commit_id, summary, self.colors.clone());
                 self.view_manager.push(Box::new(diff_view))?;
             }
             Action::OpenStagedDiff { repo, path } => {
-                let diff_view = DiffView::new_staged(repo, path);
+                let diff_view = DiffView::new_staged(repo, path, self.colors.clone());
                 self.view_manager.push(Box::new(diff_view))?;
             }
             Action::OpenUnstagedDiff { repo, path } => {
-                let diff_view = DiffView::new_unstaged(repo, path);
+                let diff_view = DiffView::new_unstaged(repo, path, self.colors.clone());
                 self.view_manager.push(Box::new(diff_view))?;
             }
             Action::None => {}
@@ -202,7 +209,7 @@ impl App {
             Span::raw("q:quit | s:status | ?:help"),
         ]);
 
-        let paragraph = Paragraph::new(status).style(Style::default().bg(Color::DarkGray));
+        let paragraph = Paragraph::new(status).style(self.colors.status_bar);
         frame.render_widget(paragraph, area);
     }
 }
